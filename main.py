@@ -385,6 +385,7 @@ def get_main_data():
         for link in links:
             id_db = link[0]
             path_page = link[1]
+            # path_page = 'data/sub/golovka-torcevaya-magnitnaya-makita-b-38716-82350589.html'
             print(f'id: {id_db}; path: {path_page}')
 
             soup = get_soup(path_page, 4)
@@ -409,25 +410,50 @@ def get_main_data():
             # Артикул
             art = path_spl[-1].split('.')[0]
             # print(art)
-            div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'}).text
             # Цена
-            price = div_price.split('₽')[0]
+            price = ''
+            div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'})
+            if div_price:
+                price = div_price.text.split('₽')[0]
+            else:
+                div_price = soup.find('span', {'class': 'n12fsaew_pdp'})
+                if div_price:
+                    price = div_price.text
             # print(price)
-
-            div_cats = soup.find_all('div', {'class': 'duZHuZHBsy_pdp'})
-            div_razd = div_cats[2]
             # Раздел
-            razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-            print(razdel)
-            div_cat = div_cats[3]
+            razdel = ''
             # Категория
-            cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-            print(cat)
-            div_subcat = div_cats[4]
+            cat = ''
             # Подкатегория
-            subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-            print(subcat)
+            subcat = ''
+            div_cats = soup.find_all('div', {'class': 'duZHuZHBsy_pdp'})
+            if len(div_cats) > 2:
+                div_razd = div_cats[2]
+                # Раздел
+                razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+                # print(razdel)
+                div_cat = div_cats[3]
+                # Категория
+                cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+                # print(cat)
+                if len(div_cats) > 4:
+                    div_subcat = div_cats[4]
+                    # Подкатегория
+                    subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+            # print(subcat)
+            # Описание
+            description = ''
+            div_description = soup.find('div', {'class': 'v1brmn3k_pdp'})
+            if div_description:
+                description = div_description.text
+            # print(div_description)
+            unit_price = ''
+            div_unit_price = soup.find('div', {'class': 'p8lj5bz_pdp srwrtsc_pdp s1gxpoqb_pdp'})
+            if div_unit_price:
+                # Цена за (шт, м2, лист и т.д.)
+                unit_price = div_unit_price.text.split('₽')[0]
 
+            print(path_page)
 
 
 
@@ -442,6 +468,7 @@ def get_main_data():
         if connection:
             connection.close()
             print("[INFO] Сбор основных данных завершен")
+
 
 def main():
     # get_links()
