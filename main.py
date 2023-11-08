@@ -25,7 +25,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 import secure
 from db_sql import connect_db, check_exist_table, create_table_ads, check_url_in_bd, insert_url_table, \
-    get_links_from_table, add_path_page
+    get_links_from_table, add_path_page, get_id_from_table
 
 GLOB_ID = 0
 
@@ -94,17 +94,20 @@ def get_soup(url, mode):
         folder = 'data/num/'
         file_name = 'num'
 
-    r = requests.get(url=url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=False)
+    if mode == 1 or mode == 2 or mode == 3:
+        r = requests.get(url=url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=False)
 
-    if not file_name.endswith(".html"):
-        file_name += ".html"
+        if not file_name.endswith(".html"):
+            file_name += ".html"
 
-    # if not os.path.exists("data"):
-    #     os.mkdir("data")
-    with open(f"{folder}{file_name}", "w", encoding="utf-8") as file:
-        file.write(r.text)
-    with open(f"{folder}{file_name}", encoding="utf-8") as file:
-        src = file.read()
+        with open(f"{folder}{file_name}", "w", encoding="utf-8") as file:
+            file.write(r.text)
+        with open(f"{folder}{file_name}", encoding="utf-8") as file:
+            src = file.read()
+    elif mode == 4:
+        with open(f"{url}", encoding="utf-8") as file:
+            src = file.read()
+
     soup = BeautifulSoup(src, "lxml")
     return soup
 
@@ -196,7 +199,7 @@ def get_data(driver: webdriver.Chrome, connection):
                 launch = row[0]
                 url = row[1]
                 driver.get(url)
-                time.sleep(1)
+                time.sleep(2)
                 nums = driver.find_elements(By.XPATH, "//a[contains(@class,'o1ojzgcq_plp')]")
                 count = 1
                 if nums:
@@ -218,7 +221,7 @@ def get_data(driver: webdriver.Chrome, connection):
                         len_cut = last.__len__()
                         url = f'{url[:-len_cut]}{i}'
                     driver.get(url)
-                    time.sleep(1)
+                    time.sleep(2)
                     hrefs = driver.find_elements(By.XPATH, "//a[contains(@class,'ihytpj4_plp')]")
                     j = 0
                     for href in hrefs:
@@ -264,16 +267,56 @@ def get_links():
 
 def save_links_data(connection, driver: webdriver.Chrome, id_db, url):
     driver.get(url)
-    time.sleep(2)
+    # driver.get("file:///home/seikacu/ext/dev/scrap_leroy_merlin/data/sub/ok/elektrovodonagrevatel-nakopitelnyy-resanta-vn-100v-vertikalnyy-100-l-90343035.html")
+    time.sleep(1)
+
     while True:
         try:
             err = driver.find_element(By.XPATH, "//span[contains(@class,'e1t81b4d_static-pages')]")
             if err:
                 err_text = err.text
                 if 'Что-то пошло не так' in err_text:
-                    time.sleep(60)
+                    time.sleep(30)
                     driver.refresh()
                     time.sleep(5)
+            else:
+                break
+        except NoSuchElementException:
+            # print(ex)
+            break
+
+    while True:
+        try:
+            unavailable = driver.find_element(By.TAG_NAME, "h1")
+            if unavailable:
+                unavailable_text = unavailable.text
+                if 'Сайт временно недоступен' in unavailable_text:
+                    time.sleep(30)
+                    driver.refresh()
+                    time.sleep(5)
+                elif 'Сайт может не работать с VPN' in unavailable_text:
+                    time.sleep(60)
+                    driver.refresh()
+                    time.sleep(30)
+                else:
+                    break
+            else:
+                break
+        except NoSuchElementException:
+            # print(ex)
+            break
+
+    while True:
+        try:
+            block = driver.find_element(By.XPATH, "//*[contains(.,'Access to resource was blocked')]")
+            if block:
+                block_text = block.text
+                if 'Access to resource was blocked' in block_text:
+                    time.sleep(60)
+                    driver.refresh()
+                    time.sleep(30)
+                else:
+                    break
             else:
                 break
         except NoSuchElementException:
@@ -300,18 +343,18 @@ def get_links_source():
         driver = get_selenium_driver(False, GLOB_ID)
 
         links = get_links_from_table(connection)
-        count = 0
+        # count = 0
         for link in links:
             id_db = link[0]
             url = link[1]
 
             save_links_data(connection, driver, id_db, url)
-            count += 1
-            if count == 50:
-                count = 0
-                time.sleep(30)
-                driver.refresh()
-                time.sleep(15)
+            # count += 1
+            # if count == 50:
+            #     count = 0
+            #     time.sleep(30)
+            #     driver.refresh()
+            #     time.sleep(5)
 
 
     except IndexError as ierr:
@@ -333,9 +376,77 @@ def get_links_source():
             print("[INFO] Сохранение url-ов на диск заверщено")
 
 
+def get_main_data():
+    connection = None
+    try:
+        connection = connect_db()
+        connection.autocommit = True
+        links = get_id_from_table(connection)
+        for link in links:
+            id_db = link[0]
+            path_page = link[1]
+            print(f'id: {id_db}; path: {path_page}')
+
+            soup = get_soup(path_page, 4)
+            pictures = ''
+            imgs = soup.find_all('img', {'class': 't2663fn_pdp'})
+            for i in range(1, len(imgs)):
+                img = imgs[i]
+                l_pict = img['data-src']
+                spl = str(l_pict).split('/')
+                spl.pop(7)
+                pict = ''
+                for el in spl:
+                    pict += el + '/'
+                pict = pict[:-1]
+                pictures += pict + ';'
+            # Фото(ссылка на фото, разделитель ;)
+            pictures = pictures[:-1]
+            h = soup.find('h1')
+            # Название
+            name = h.find('span', {'class': 't12nw7s2_pdp'}).text
+            path_spl = str(path_page).split('-')
+            # Артикул
+            art = path_spl[-1].split('.')[0]
+            # print(art)
+            div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'}).text
+            # Цена
+            price = div_price.split('₽')[0]
+            # print(price)
+
+            div_cats = soup.find_all('div', {'class': 'duZHuZHBsy_pdp'})
+            div_razd = div_cats[2]
+            # Раздел
+            razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+            print(razdel)
+            div_cat = div_cats[3]
+            # Категория
+            cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+            print(cat)
+            div_subcat = div_cats[4]
+            # Подкатегория
+            subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+            print(subcat)
+
+
+
+
+
+    except IndexError as ierr:
+        print("YAAAAAAAA")
+    except Exception as _ex:
+        print("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
+        # log.write_log("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
+        pass
+    finally:
+        if connection:
+            connection.close()
+            print("[INFO] Сбор основных данных завершен")
+
 def main():
     # get_links()
-    get_links_source()
+    # get_links_source()
+    get_main_data()
 
 
 if __name__ == '__main__':

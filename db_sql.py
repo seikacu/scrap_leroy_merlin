@@ -39,6 +39,7 @@ def create_table_ads(connection):
                     description varchar(1000),
                     price_per varchar(15),
                     brand varchar(50),                    
+                    path_page varchar(200),                    
                     CONSTRAINT "leroymerlin_pk" PRIMARY KEY ("id","url")
                     ) WITH (
                     OIDS=FALSE
@@ -183,5 +184,12 @@ def get_data_from_table(connection, category_name):
 def get_links_from_table(connection):
     with connection.cursor() as cursor:
         cursor.execute(f"""SELECT id, url FROM leroymerlin WHERE path_page IS NULL;""")
+        # cursor.execute(f"""SELECT * FROM leroymerlin;""")
+        if cursor.fetchone is not None:
+            return cursor.fetchall()
+
+def get_id_from_table(connection):
+    with connection.cursor() as cursor:
+        cursor.execute(f"""SELECT id, path_page FROM leroymerlin WHERE path_page IS NOT NULL;""")
         if cursor.fetchone is not None:
             return cursor.fetchall()
