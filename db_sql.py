@@ -54,21 +54,21 @@ def create_table_ads(connection):
         pass
 
 
-def insert_to_table(connection, url, category, sub_category_1, sub_category_2, sub_category_3, sub_category_4,
-                    sub_category_5, location, launch_point):
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""INSERT INTO ads (url, category, sub_category_1, sub_category_2, sub_category_3, sub_category_4,
-                sub_category_5, location, launch_point) VALUES 
-                    ('{url}', '{category}', '{sub_category_1}', '{sub_category_2}', '{sub_category_3}',
-                    '{sub_category_4}', '{sub_category_5}', '{location}', '{launch_point}');"""
-            )
-
-    except Exception as _ex:
-        # log.write_log("db_sql_insert_to_table ", _ex)
-        print("db_sql_insert_to_table_  Error while working with PostgreSQL", _ex)
-        pass
+# def insert_to_table(connection, url, category, sub_category_1, sub_category_2, sub_category_3, sub_category_4,
+#                     sub_category_5, location, launch_point):
+#     try:
+#         with connection.cursor() as cursor:
+#             cursor.execute(
+#                 f"""INSERT INTO ads (url, category, sub_category_1, sub_category_2, sub_category_3, sub_category_4,
+#                 sub_category_5, location, launch_point) VALUES
+#                     ('{url}', '{category}', '{sub_category_1}', '{sub_category_2}', '{sub_category_3}',
+#                     '{sub_category_4}', '{sub_category_5}', '{location}', '{launch_point}');"""
+#             )
+#
+#     except Exception as _ex:
+#         # log.write_log("db_sql_insert_to_table ", _ex)
+#         print("db_sql_insert_to_table_  Error while working with PostgreSQL", _ex)
+#         pass
 
 def insert_url_table(connection, url, launch_point):
     try:
@@ -80,6 +80,19 @@ def insert_url_table(connection, url, launch_point):
     except Exception as _ex:
         # log.write_log("db_sql_insert_to_table ", _ex)
         print("db_sql_insert_to_table_  Error while working with PostgreSQL", _ex)
+        pass
+
+
+def add_main_data(connection, id_db, pictures, name, art, price, cat, subcat, razdel, description, unit_price):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"""UPDATE leroymerlin SET photos = '{pictures}', name = '{name}', article = '{art}', price = '{price}', category = '{cat}', sub_category = '{subcat}', section = '{razdel}', description = '{description}', price_per = '{unit_price}' WHERE id = {id_db};""")
+
+            print(f"[INFO] Information by id {id_db} was successfully add")
+
+    except Exception as _ex:
+        # log.write_log("db_sql_add_phone1 ", _ex)
+        print("db_sql__Path_page Error while working with PostgreSQL", _ex)
         pass
 
 
@@ -96,33 +109,33 @@ def add_path_page(connection, id_db, path_page):
         pass
 
 
-def add_phone2(connection, id_db, phone):
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(f"""UPDATE ads SET phone_2 = '{phone}' WHERE id = {id_db};""")
-
-            print(f"[INFO] Phone_2 {phone} was successfully add")
-
-    except Exception as _ex:
-        log.write_log("db_sql_add_phone2 ", _ex)
-        print("db_sql_phone2_ Error while working with PostgreSQL", _ex)
-        pass
+# def add_phone2(connection, id_db, phone):
+#     try:
+#         with connection.cursor() as cursor:
+#             cursor.execute(f"""UPDATE ads SET phone_2 = '{phone}' WHERE id = {id_db};""")
+#
+#             print(f"[INFO] Phone_2 {phone} was successfully add")
+#
+#     except Exception as _ex:
+#         log.write_log("db_sql_add_phone2 ", _ex)
+#         print("db_sql_phone2_ Error while working with PostgreSQL", _ex)
+#         pass
 
 
 def get_data_to_csv_file(name_csv):
     connection = None
-    split_name_csv = name_csv.split("_")
+    # split_name_csv = name_csv.split("_")
     try:
         connection = connect_db()
         with connection.cursor() as cursor:
-            sql = f"""SELECT * FROM ads WHERE launch_point = '{split_name_csv[0]}'"""
+            sql = f"""SELECT id, photos, name, article, price, category, sub_category, section, url, description, price_per FROM leroymerlin""" # ads WHERE launch_point = '{split_name_csv[0]}'
             cursor.execute(sql)
             rows = cursor.fetchall()
-            with open(f"result/{name_csv}.csv", "a", newline='', encoding="utf-8") as file:
+            with open(f"data/result/{name_csv}.csv", "a", newline='', encoding="utf-8") as file:
                 writer = csv.writer(file, delimiter='\t')
                 writer.writerows(rows)
     except Exception as _ex:
-        log.write_log("db_sql_get_data_to_csv_file ", _ex)
+        # log.write_log("db_sql_get_data_to_csv_file ", _ex)
         print("db_sql_get_data_to_csv_file_ Error while working with PostgreSQL", _ex)
         pass
     finally:
@@ -137,22 +150,22 @@ def check_url_in_bd(connection, url):
         return cursor.fetchone() is not None
 
 
-def delete_data_from_table(category_name):
-    connection = None
-    try:
-        connection = connect_db()
-        connection.autocommit = True
-        with connection.cursor() as cursor:
-            cursor.execute(f"""DELETE FROM ads WHERE launch_point = '{category_name}';""")
-            print("[INFO] Data was deleted")
-    except Exception as _ex:
-        log.write_log("db_sql_delete_data_from_table ", _ex)
-        print("db_sql_delete_data_from_table_ Error while working with PostgreSQL", _ex)
-        pass
-    finally:
-        if connection:
-            connection.close()
-            print("[INFO] PostgreSQL connection closed")
+# def delete_data_from_table(category_name):
+#     connection = None
+#     try:
+#         connection = connect_db()
+#         connection.autocommit = True
+#         with connection.cursor() as cursor:
+#             cursor.execute(f"""DELETE FROM ads WHERE launch_point = '{category_name}';""")
+#             print("[INFO] Data was deleted")
+#     except Exception as _ex:
+#         log.write_log("db_sql_delete_data_from_table ", _ex)
+#         print("db_sql_delete_data_from_table_ Error while working with PostgreSQL", _ex)
+#         pass
+#     finally:
+#         if connection:
+#             connection.close()
+#             print("[INFO] PostgreSQL connection closed")
 
 
 def delete_table():
@@ -173,12 +186,12 @@ def delete_table():
             print("[INFO] PostgreSQL connection closed")
 
 
-def get_data_from_table(connection, category_name):
-    with connection.cursor() as cursor:
-        cursor.execute(f"""SELECT id, url FROM ads WHERE launch_point = '{category_name}'
-        AND data IS NULL;""")
-        if cursor.fetchone is not None:
-            return cursor.fetchall()
+# def get_data_from_table(connection, category_name):
+#     with connection.cursor() as cursor:
+#         cursor.execute(f"""SELECT id, url FROM ads WHERE launch_point = '{category_name}'
+#         AND data IS NULL;""")
+#         if cursor.fetchone is not None:
+#             return cursor.fetchall()
 
 
 def get_links_from_table(connection):

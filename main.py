@@ -1,7 +1,7 @@
 import csv
-import os
 
 import time
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,21 +11,17 @@ import platform
 import time
 import zipfile
 
-from python_rucaptcha.image_captcha import ImageCaptcha
-from python_rucaptcha.re_captcha import ReCaptcha
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.support import expected_conditions as ex_cond
 
-from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 import secure
 from db_sql import connect_db, check_exist_table, create_table_ads, check_url_in_bd, insert_url_table, \
-    get_links_from_table, add_path_page, get_id_from_table
+    get_links_from_table, add_path_page, get_id_from_table, add_main_data, get_data_to_csv_file
 
 GLOB_ID = 0
 
@@ -207,7 +203,6 @@ def get_data(driver: webdriver.Chrome, connection):
                     item = nums.__getitem__(len_nums - 1)
                     count = int(item.text)
                 for i in range(1, pages + count):
-                    print(i)
                     # url = f'https://leroymerlin.ru/search/?q=UNIS&06575=UNIS&page={i}' o1ojzgcq_plp
                     if i == 1:
                         if url.endswith('/'):
@@ -238,7 +233,6 @@ def get_data(driver: webdriver.Chrome, connection):
 
 def get_links():
     connection = None
-    driver = None
     try:
         connection = connect_db()
         connection.autocommit = True
@@ -248,18 +242,10 @@ def get_links():
         get_data(driver, connection)
     except IndexError as ierr:
         print("YAAAAAAAA")
-        # log.write_log("IndexError", ierr)
-        # log.write_log("IndexError. data = ", data)
-        # log.write_log(f"IndexError. sel = {sel}, id_bd = {id_bd}, url = {url}, row = {row}. ", "INDEX ERROR END")
     except Exception as _ex:
         print("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
-        # log.write_log("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
         pass
     finally:
-        if driver:
-            # driver.close()
-            # driver.quit()
-            print("[INFO] Selen driver closed")
         if connection:
             connection.close()
             print("[INFO] Сбор ссылок завершен")
@@ -359,18 +345,10 @@ def get_links_source():
 
     except IndexError as ierr:
         print("YAAAAAAAA")
-        # log.write_log("IndexError", ierr)
-        # log.write_log("IndexError. data = ", data)
-        # log.write_log(f"IndexError. sel = {sel}, id_bd = {id_bd}, url = {url}, row = {row}. ", "INDEX ERROR END")
     except Exception as _ex:
         print("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
-        # log.write_log("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
         pass
     finally:
-        if driver:
-            # driver.close()
-            # driver.quit()
-            print("[INFO] Selen driver closed")
         if connection:
             connection.close()
             print("[INFO] Сохранение url-ов на диск заверщено")
@@ -385,7 +363,7 @@ def get_main_data():
         for link in links:
             id_db = link[0]
             path_page = link[1]
-            # path_page = 'data/sub/golovka-torcevaya-magnitnaya-makita-b-38716-82350589.html'
+            # path_page = 'data/sub/ushm-bolgarka-makita-ga9020sf-82086289.html'
             print(f'id: {id_db}; path: {path_page}')
 
             soup = get_soup(path_page, 4)
@@ -409,17 +387,23 @@ def get_main_data():
             path_spl = str(path_page).split('-')
             # Артикул
             art = path_spl[-1].split('.')[0]
-            # print(art)
             # Цена
             price = ''
             div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'})
             if div_price:
-                price = div_price.text.split('₽')[0]
+                price = str(div_price.text.split('₽')[0]).replace(',', '.')
+                price = "".join(price.split())
             else:
-                div_price = soup.find('span', {'class': 'n12fsaew_pdp'})
-                if div_price:
-                    price = div_price.text
-            # print(price)
+                div_price1 = soup.find('span', {'class': 'n12fsaew_pdp'})
+                div_price2 = soup.find('span', {'class': 'n7aqpyk_pdp'})
+                if div_price1:
+                    if div_price2:
+                        price = div_price1.text + div_price2.text
+                    else:
+                        price = div_price1.text
+                    price = price.replace(',', '.')
+                    price = "".join(price.split())
+
             # Раздел
             razdel = ''
             # Категория
@@ -431,38 +415,36 @@ def get_main_data():
                 div_razd = div_cats[2]
                 # Раздел
                 razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-                # print(razdel)
                 div_cat = div_cats[3]
                 # Категория
                 cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-                # print(cat)
                 if len(div_cats) > 4:
                     div_subcat = div_cats[4]
                     # Подкатегория
                     subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-            # print(subcat)
             # Описание
             description = ''
-            div_description = soup.find('div', {'class': 'v1brmn3k_pdp'})
-            if div_description:
-                description = div_description.text
-            # print(div_description)
+            section_description = soup.find('section', {'id': 'description'})
+            if section_description:
+                div_description = section_description.find('div', {'class': 'v1brmn3k_pdp'})
+                # div_description = soup.find('div', {'class': 'v1brmn3k_pdp'})
+                if div_description:
+                    description = div_description.text.replace("'", " ")
             unit_price = ''
             div_unit_price = soup.find('div', {'class': 'p8lj5bz_pdp srwrtsc_pdp s1gxpoqb_pdp'})
             if div_unit_price:
                 # Цена за (шт, м2, лист и т.д.)
-                unit_price = div_unit_price.text.split('₽')[0]
-
-            print(path_page)
-
-
-
+                unit_price = str(div_unit_price.text.split('₽')[0]).replace(',', '.')
+                unit_price = "".join(unit_price.split())
+            # print(pictures, name, art, price, cat, subcat, razdel, description, unit_price)
+            add_main_data(connection, id_db, pictures, name, art, price, cat, subcat, razdel, description, unit_price)
+            # Бренд
+            brand = ''
 
     except IndexError as ierr:
         print("YAAAAAAAA")
     except Exception as _ex:
         print("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
-        # log.write_log("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
         pass
     finally:
         if connection:
@@ -470,10 +452,37 @@ def get_main_data():
             print("[INFO] Сбор основных данных завершен")
 
 
+def get_csv():
+    cur_date = datetime.now()
+    cur_date_str = cur_date.strftime("%Y-%m-%d %H-%M-%S")
+    # name_csv = f"{get_category_name()}_{cur_date_str}"
+    name_csv = f"result_{cur_date_str}"
+    with open(f"data/result/{name_csv}.csv", "w", newline='', encoding="utf-8") as file:
+        writer = csv.writer(file, delimiter='\t')
+        writer.writerow(
+            (
+                "id",
+                "Фото",
+                "Название",
+                "Артикул",
+                "Цена",
+                "Категория",
+                "Подкатегория",
+                "Раздел",
+                "URL",
+                "Описание",
+                "Цена за (шт, м2, лист и т.д.)",
+                # "Бренд"
+            )
+        )
+        get_data_to_csv_file(name_csv)
+
+
 def main():
     # get_links()
     # get_links_source()
     get_main_data()
+    # get_csv()
 
 
 if __name__ == '__main__':
