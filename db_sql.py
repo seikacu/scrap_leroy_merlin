@@ -86,7 +86,8 @@ def insert_url_table(connection, url, launch_point):
 def add_main_data(connection, id_db, pictures, name, art, price, cat, subcat, razdel, description, unit_price):
     try:
         with connection.cursor() as cursor:
-            cursor.execute(f"""UPDATE leroymerlin SET photos = '{pictures}', name = '{name}', article = '{art}', price = '{price}', category = '{cat}', sub_category = '{subcat}', section = '{razdel}', description = '{description}', price_per = '{unit_price}' WHERE id = {id_db};""")
+            cursor.execute(
+                f"""UPDATE leroymerlin SET photos = '{pictures}', name = '{name}', article = '{art}', price = '{price}', category = '{cat}', sub_category = '{subcat}', section = '{razdel}', description = '{description}', price_per = '{unit_price}' WHERE id = {id_db};""")
 
             print(f"[INFO] Information by id {id_db} was successfully add")
 
@@ -128,7 +129,7 @@ def get_data_to_csv_file(name_csv):
     try:
         connection = connect_db()
         with connection.cursor() as cursor:
-            sql = f"""SELECT id, photos, name, article, price, category, sub_category, section, url, description, price_per FROM leroymerlin""" # ads WHERE launch_point = '{split_name_csv[0]}'
+            sql = f"""SELECT id, photos, name, article, price, category, sub_category, section, url, description, price_per FROM leroymerlin"""  # ads WHERE launch_point = '{split_name_csv[0]}'
             cursor.execute(sql)
             rows = cursor.fetchall()
             with open(f"data/result/{name_csv}.csv", "a", newline='', encoding="utf-8") as file:
@@ -201,8 +202,38 @@ def get_links_from_table(connection):
         if cursor.fetchone is not None:
             return cursor.fetchall()
 
+
 def get_id_from_table(connection):
     with connection.cursor() as cursor:
-        cursor.execute(f"""SELECT id, path_page FROM leroymerlin WHERE path_page IS NOT NULL;""")
+        cursor.execute(f"""SELECT id, path_page FROM leroymerlin_01 WHERE path_page IS NOT NULL ORDER BY id;""")
         if cursor.fetchone is not None:
             return cursor.fetchall()
+
+
+def get_all_columns(connection):
+    with connection.cursor() as cursor:
+        cursor.execute(f"""SELECT column_name FROM information_schema.columns WHERE table_name = 'leroymerlin_01';""")
+        if cursor.fetchone is not None:
+            return cursor.fetchall()
+
+
+def add_column(connection, col):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"""ALTER TABLE leroymerlin_01 ADD COLUMN {col} text;""")
+
+            print(f"[INFO] Col {col} was successfully ADD")
+    except Exception as _ex:
+        print("db_sql__Path_page Error while working with PostgreSQL", _ex)
+
+
+def add_data_column(connection, id_db, col, val):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"""UPDATE leroymerlin_01 SET {col} = '{val}' WHERE id = {id_db};""")
+
+            print(f"[INFO] Col {col} was successfully UPDATE")
+
+    except Exception as _ex:
+        # log.write_log("db_sql_add_phone1 ", _ex)
+        print("db_sql__Path_page Error while working with PostgreSQL", _ex)

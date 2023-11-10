@@ -1,4 +1,6 @@
+import asyncio
 import csv
+import re
 
 import time
 from datetime import datetime
@@ -21,7 +23,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 import secure
 from db_sql import connect_db, check_exist_table, create_table_ads, check_url_in_bd, insert_url_table, \
-    get_links_from_table, add_path_page, get_id_from_table, add_main_data, get_data_to_csv_file
+    get_links_from_table, add_path_page, get_id_from_table, add_main_data, get_data_to_csv_file, \
+    get_all_columns, add_column, add_data_column
 
 GLOB_ID = 0
 
@@ -354,92 +357,17 @@ def get_links_source():
             print("[INFO] Сохранение url-ов на диск заверщено")
 
 
-def get_main_data():
+async def get_main_data():
     connection = None
     try:
         connection = connect_db()
         connection.autocommit = True
         links = get_id_from_table(connection)
-        for link in links:
-            id_db = link[0]
-            path_page = link[1]
-            # path_page = 'data/sub/ushm-bolgarka-makita-ga9020sf-82086289.html'
-            print(f'id: {id_db}; path: {path_page}')
 
-            soup = get_soup(path_page, 4)
-            pictures = ''
-            imgs = soup.find_all('img', {'class': 't2663fn_pdp'})
-            for i in range(1, len(imgs)):
-                img = imgs[i]
-                l_pict = img['data-src']
-                spl = str(l_pict).split('/')
-                spl.pop(7)
-                pict = ''
-                for el in spl:
-                    pict += el + '/'
-                pict = pict[:-1]
-                pictures += pict + ';'
-            # Фото(ссылка на фото, разделитель ;)
-            pictures = pictures[:-1]
-            h = soup.find('h1')
-            # Название
-            name = h.find('span', {'class': 't12nw7s2_pdp'}).text
-            path_spl = str(path_page).split('-')
-            # Артикул
-            art = path_spl[-1].split('.')[0]
-            # Цена
-            price = ''
-            div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'})
-            if div_price:
-                price = str(div_price.text.split('₽')[0]).replace(',', '.')
-                price = "".join(price.split())
-            else:
-                div_price1 = soup.find('span', {'class': 'n12fsaew_pdp'})
-                div_price2 = soup.find('span', {'class': 'n7aqpyk_pdp'})
-                if div_price1:
-                    if div_price2:
-                        price = div_price1.text + div_price2.text
-                    else:
-                        price = div_price1.text
-                    price = price.replace(',', '.')
-                    price = "".join(price.split())
-
-            # Раздел
-            razdel = ''
-            # Категория
-            cat = ''
-            # Подкатегория
-            subcat = ''
-            div_cats = soup.find_all('div', {'class': 'duZHuZHBsy_pdp'})
-            if len(div_cats) > 2:
-                div_razd = div_cats[2]
-                # Раздел
-                razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-                div_cat = div_cats[3]
-                # Категория
-                cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-                if len(div_cats) > 4:
-                    div_subcat = div_cats[4]
-                    # Подкатегория
-                    subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
-            # Описание
-            description = ''
-            section_description = soup.find('section', {'id': 'description'})
-            if section_description:
-                div_description = section_description.find('div', {'class': 'v1brmn3k_pdp'})
-                # div_description = soup.find('div', {'class': 'v1brmn3k_pdp'})
-                if div_description:
-                    description = div_description.text.replace("'", " ")
-            unit_price = ''
-            div_unit_price = soup.find('div', {'class': 'p8lj5bz_pdp srwrtsc_pdp s1gxpoqb_pdp'})
-            if div_unit_price:
-                # Цена за (шт, м2, лист и т.д.)
-                unit_price = str(div_unit_price.text.split('₽')[0]).replace(',', '.')
-                unit_price = "".join(unit_price.split())
-            # print(pictures, name, art, price, cat, subcat, razdel, description, unit_price)
-            add_main_data(connection, id_db, pictures, name, art, price, cat, subcat, razdel, description, unit_price)
-            # Бренд
-            brand = ''
+        tasks = [asyncio.create_task(scrap_data(connection, link)) for link in links]
+        await asyncio.gather(*tasks, loop=asyncio.get_event_loop())
+        # for link in links:
+        # scrap_data(connection, link)
 
     except IndexError as ierr:
         print("YAAAAAAAA")
@@ -450,6 +378,83 @@ def get_main_data():
         if connection:
             connection.close()
             print("[INFO] Сбор основных данных завершен")
+
+
+async def scrap_data(connection, link):
+    id_db = link[0]
+    path_page = link[1]
+    # path_page = 'data/sub/ushm-bolgarka-makita-ga9020sf-82086289.html'
+    print(f'id: {id_db}; path: {path_page}')
+    soup = get_soup(path_page, 4)
+    pictures = ''
+    imgs = soup.find_all('img', {'class': 't2663fn_pdp'})
+    for i in range(1, len(imgs)):
+        img = imgs[i]
+        l_pict = img['data-src']
+        spl = str(l_pict).split('/')
+        spl.pop(7)
+        pict = ''
+        for el in spl:
+            pict += el + '/'
+        pict = pict[:-1]
+        pictures += pict + ';'
+    # Фото(ссылка на фото, разделитель ;)
+    pictures = pictures[:-1]
+    h = soup.find('h1')
+    # Название
+    name = h.find('span', {'class': 't12nw7s2_pdp'}).text
+    path_spl = str(path_page).split('-')
+    # Артикул
+    art = path_spl[-1].split('.')[0]
+    # Цена
+    price = ''
+    div_price = soup.find('div', {'class': 'p8lj5bz_pdp primary-price p10rkzic_pdp'})
+    if div_price:
+        price = str(div_price.text.split('₽')[0]).replace(',', '.')
+        price = "".join(price.split())
+    else:
+        div_price1 = soup.find('span', {'class': 'n12fsaew_pdp'})
+        div_price2 = soup.find('span', {'class': 'n7aqpyk_pdp'})
+        if div_price1:
+            if div_price2:
+                price = div_price1.text + div_price2.text
+            else:
+                price = div_price1.text
+            price = price.replace(',', '.')
+            price = "".join(price.split())
+    # Раздел
+    razdel = ''
+    # Категория
+    cat = ''
+    # Подкатегория
+    subcat = ''
+    div_cats = soup.find_all('div', {'class': 'duZHuZHBsy_pdp'})
+    if len(div_cats) > 2:
+        div_razd = div_cats[2]
+        # Раздел
+        razdel = div_razd.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+        div_cat = div_cats[3]
+        # Категория
+        cat = div_cat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+        if len(div_cats) > 4:
+            div_subcat = div_cats[4]
+            # Подкатегория
+            subcat = div_subcat.find_next('span', {'class': 'IPsrg8QnEZ_pdp'}).text
+    # Описание
+    description = ''
+    section_description = soup.find('section', {'id': 'description'})
+    if section_description:
+        div_description = section_description.find('div', {'class': 'v1brmn3k_pdp'})
+        if div_description:
+            description = div_description.text.replace("'", " ")
+    unit_price = ''
+    div_unit_price = soup.find('div', {'class': 'p8lj5bz_pdp srwrtsc_pdp s1gxpoqb_pdp'})
+    if div_unit_price:
+        # Цена за (шт, м2, лист и т.д.)
+        unit_price = str(div_unit_price.text.split('₽')[0]).replace(',', '.')
+        unit_price = "".join(unit_price.split())
+    # print(pictures, name, art, price, cat, subcat, razdel, description, unit_price)
+    add_main_data(connection, id_db, pictures, name, art, price, cat, subcat, razdel, description, unit_price)
 
 
 def get_csv():
@@ -478,10 +483,88 @@ def get_csv():
         get_data_to_csv_file(name_csv)
 
 
+def cur_to_lat(string, t, sep='-'):
+    new_string = ''
+    for cur in string.lower():
+        if cur in list(t.keys()):
+            new_string += t[cur]
+        elif cur == " ":
+            new_string += sep
+
+    return new_string
+
+
+t = {'ё': 'yo', 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ж': 'zh', 'з': 'z', 'і': 'i',
+     'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+     'у': 'u', 'ф': 'f', 'х': 'h', 'ц ': 'c', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'и': 'i', 'ь': '',
+     'э': 'e', 'ю': 'yu', 'я': 'ya', 'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': 'g'
+     , 'h': 'h', 'i': 'i', 'j': 'j', 'k': 'k', 'l': 'l', 'm': 'm', 'n': 'n', 'o': 'o', 'p': 'p', 'q': 'q'
+     , 'r': 'r', 's': 's', 't': 't', 'u': 'u', 'v': 'v', 'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z'}
+
+
+def scrap_spec(connection, link):
+    id_db = link[0]
+    path_page = link[1]
+    # path_page = 'data/sub/dalnomer-lazernyy-resanta-dl-60-s-dalnostyu-do-60-m-89160873.html'
+    print(f'START id: {id_db}; path: {path_page}')
+    soup = get_soup(path_page, 4)
+
+    '''
+    ХАРАКТЕРИСТИКИ
+    '''
+    section_characteristics = soup.find('section', {'id': 'characteristics'})
+    if section_characteristics:
+        characteristics = section_characteristics.find_all('div', {'class': 'p2o81wx_pdp'})
+        for character in characteristics:
+            name = character.find_next('dt', {'itemprop': 'name'}).text
+            value = character.find_next('dd', {'itemprop': 'value'}).text
+            value = value.replace("'", " ")
+            lat_name = cur_to_lat(f'{name}', t, sep='_')
+            if len(lat_name) >= 63:
+                lat_name = lat_name[-62:]
+            cols = get_all_columns(connection)
+            found = 0
+            for el in cols:
+                col = el[0]
+                if str(col) == str(lat_name):
+                    found = 1
+                    add_data_column(connection, id_db, lat_name, value)
+                    ### ЗАПИСАТЬ ЗНАЧЕНИЕ В ТАБЛИЦУ
+            if found == 0:
+                add_column(connection, lat_name)
+                add_data_column(connection, id_db, lat_name, value)
+                ### СОЗДАТЬ СТОЛБЕЦ И ЗАПИСАТЬ ЗНАЧЕНИЕ В ТАБЛИЦУ
+    print(f'END id: {id_db}; path: {path_page}')
+
+
+def get_specifications():
+    connection = None
+    try:
+        connection = connect_db()
+        connection.autocommit = True
+        links = get_id_from_table(connection)
+
+        # tasks = [asyncio.create_task(scrap_data(connection, link)) for link in links]
+        # await asyncio.gather(*tasks, loop=asyncio.get_event_loop())
+        for link in links:
+            scrap_spec(connection, link)
+
+    except IndexError as ierr:
+        print("YAAAAAAAA")
+    except Exception as _ex:
+        print("tk_clicked_get_phone_ Error while working with PostgreSQL", _ex)
+        pass
+    finally:
+        if connection:
+            connection.close()
+            print("[INFO] Сбор основных данных завершен")
+
+
 def main():
     # get_links()
     # get_links_source()
-    get_main_data()
+    # asyncio.run(get_main_data())
+    get_specifications()
     # get_csv()
 
 
